@@ -106,7 +106,7 @@ int D3DApp::Run()
 
 bool D3DApp::Initialize()
 {
-	if(!InitMainWindow())
+	if(!InitMainWindow())//创建窗口，包括创建窗口类和窗口句柄
 		return false;
 
 	if(!InitDirect3D())
@@ -121,6 +121,7 @@ bool D3DApp::Initialize()
 void D3DApp::CreateRtvAndDsvDescriptorHeaps()
 {
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
+	//这里设置他的描述符的数量为交换链缓存的数量
     rtvHeapDesc.NumDescriptors = SwapChainBufferCount;
     rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
     rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
@@ -424,6 +425,8 @@ bool D3DApp::InitDirect3D()
 #endif
 
 	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory)));
+	//设备工厂是DXGI的关键接口之一，主要用于创建交换链和适配器
+
 
 	// Try to create hardware device.
 	HRESULT hardwareResult = D3D12CreateDevice(
@@ -443,6 +446,7 @@ bool D3DApp::InitDirect3D()
 			IID_PPV_ARGS(&md3dDevice)));
 	}
 
+	//创建围栏使GPU和cpu同步
 	ThrowIfFailed(md3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE,
 		IID_PPV_ARGS(&mFence)));
 
@@ -468,7 +472,7 @@ bool D3DApp::InitDirect3D()
 	assert(m4xMsaaQuality > 0 && "Unexpected MSAA quality level.");
 	
 #ifdef _DEBUG
-    LogAdapters();
+    LogAdapters();//打印支持的设备，调试用的，没多大作用
 #endif
 
 	CreateCommandObjects();

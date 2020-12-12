@@ -5,6 +5,7 @@
 #pragma once
 
 #if defined(DEBUG) || defined(_DEBUG)
+
 #define _CRTDBG_MAP_ALLOC
 #include <crtdbg.h>
 #endif
@@ -124,5 +125,39 @@ protected:
     DXGI_FORMAT mDepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	int mClientWidth = 800;
 	int mClientHeight = 600;
-};
 
+
+public:
+    static void LogText(const char*textCon)
+    {
+        int bufSize = MultiByteToWideChar(CP_ACP, 0, textCon, -1, NULL, 0);
+        wchar_t* pwstr = new wchar_t[bufSize];
+        MultiByteToWideChar(CP_ACP, 0, textCon, -1, pwstr, bufSize);
+
+        OutputDebugString(pwstr);
+        OutputDebugString(L"\n");
+        delete[]pwstr;
+    }
+
+    static std::string toString(int num)
+    {
+        char buf[100];
+        memset(buf, 0, sizeof(buf));
+        sprintf(buf, "%d", num);
+
+        return std::string(buf);
+    }
+
+    static std::string toString(float num)
+    {
+        char buf[100];
+        memset(buf, 0, sizeof(buf));
+        sprintf(buf, "%f", num);
+
+        return std::string(buf);
+    }
+};
+#if defined(DEBUG) || defined(_DEBUG)
+    #define LogText D3DApp::LogText
+    #define toStringTmp D3DApp::toString
+#endif

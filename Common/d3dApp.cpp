@@ -475,9 +475,9 @@ bool D3DApp::InitDirect3D()
     LogAdapters();//打印支持的设备，调试用的，没多大作用
 #endif
 
-	CreateCommandObjects();
-    CreateSwapChain();
-    CreateRtvAndDsvDescriptorHeaps();
+	CreateCommandObjects();//创建命令列表和命令队列
+    CreateSwapChain();		//创建交换链
+    CreateRtvAndDsvDescriptorHeaps();//创建渲染和深度模板缓冲
 
 	return true;
 }

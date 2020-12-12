@@ -12,6 +12,7 @@
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
+using namespace std;
 using namespace DirectX::PackedVector;
 
 const int gNumFrameResources = 3;
@@ -215,6 +216,7 @@ void ShapesApp::Update(const GameTimer& gt)
 	UpdateMainPassCB(gt);
 }
 
+//update和draw都是每帧更新的函数，draw在draw后
 void ShapesApp::Draw(const GameTimer& gt)
 {
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
@@ -355,11 +357,16 @@ void ShapesApp::UpdateCamera(const GameTimer& gt)
 
 void ShapesApp::UpdateObjectCBs(const GameTimer& gt)
 {
+    //currObjectCB是当前帧资源的对象常量缓存区
 	auto currObjectCB = mCurrFrameResource->ObjectCB.get();
 	for(auto& e : mAllRitems)
 	{
 		// Only update the cbuffer data if the constants have changed.  
 		// This needs to be tracked per frame resource.
+
+        //NumFramesDirty是状态位，当NumFramesDirty大于零说明NumFramesDirty没更新过
+        //需要进行更新，更新之后将状态位--，
+        //mAllRitems是所有的渲染项，所以这个函数是将当前帧的所有渲染对象的世界矩阵更新
 		if(e->NumFramesDirty > 0)
 		{
 			XMMATRIX world = XMLoadFloat4x4(&e->World);
@@ -377,6 +384,7 @@ void ShapesApp::UpdateObjectCBs(const GameTimer& gt)
 
 void ShapesApp::UpdateMainPassCB(const GameTimer& gt)
 {
+    //更新当前帧的所有跟摄像机有关的矩阵
 	XMMATRIX view = XMLoadFloat4x4(&mView);
 	XMMATRIX proj = XMLoadFloat4x4(&mProj);
 
@@ -430,6 +438,8 @@ void ShapesApp::BuildConstantBufferViews()
     UINT objCount = (UINT)mOpaqueRitems.size();
 
     // Need a CBV descriptor for each object for each frame resource.
+    //更新数据必须知道首地址和数据的长度
+    //ObjectCB是一块连续的地址，物体对象的常量缓冲区全挨在一起
     for(int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex)
     {
         auto objectCB = mFrameResources[frameIndex]->ObjectCB->Resource();
@@ -449,13 +459,20 @@ void ShapesApp::BuildConstantBufferViews()
             cbvDesc.BufferLocation = cbAddress;
             cbvDesc.SizeInBytes = objCBByteSize;
 
+            int a = sizeof(cbvDesc.BufferLocation) + sizeof(cbvDesc.SizeInBytes);
+           
+            LogText(toStringTmp(a).c_str());
+
             md3dDevice->CreateConstantBufferView(&cbvDesc, handle);
         }
     }
 
     UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
+
     // Last three descriptors are the pass CBVs for each frame resource.
+    //passCB与ObjectCB不一样作用，所以他们的地址不挨在一起
+    //更正一个想法错误，不同的passCB也不挨在一起
     for(int frameIndex = 0; frameIndex < gNumFrameResources; ++frameIndex)
     {
         auto passCB = mFrameResources[frameIndex]->PassCB->Resource();
@@ -488,7 +505,7 @@ void ShapesApp::BuildRootSignature()
 	// Create root CBVs.
     slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable0);
     slotRootParameter[1].InitAsDescriptorTable(1, &cbvTable1);
-
+ 
 	// A root signature is an array of root parameters.
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(2, slotRootParameter, 0, nullptr, 
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);

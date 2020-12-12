@@ -11,6 +11,9 @@
 #include "../../Common/d3dApp.h"
 #include "../../Common/MathHelper.h"
 #include "../../Common/UploadBuffer.h"
+#include<iostream>
+
+using namespace std;
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -25,6 +28,7 @@ struct Vertex
 struct ObjectConstants
 {
     XMFLOAT4X4 WorldViewProj = MathHelper::Identity4x4();
+    float gTime = 0;
 };
 
 class BoxApp : public D3DApp
@@ -58,14 +62,14 @@ private:
     ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
     ComPtr<ID3D12DescriptorHeap> mCbvHeap = nullptr;
 
-    std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;
+    std::unique_ptr<UploadBuffer<ObjectConstants>> mObjectCB = nullptr;//mObjectCB赋值后为UploadBuffer类对象的指针
 
 	std::unique_ptr<MeshGeometry> mBoxGeo = nullptr;
 
     ComPtr<ID3DBlob> mvsByteCode = nullptr;
     ComPtr<ID3DBlob> mpsByteCode = nullptr;
 
-    std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
+    std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;//shader的语义，传输数据格式通过这个告诉shader
 
     ComPtr<ID3D12PipelineState> mPSO = nullptr;
 
@@ -169,7 +173,15 @@ void BoxApp::Update(const GameTimer& gt)
 	// Update the constant buffer with the latest worldViewProj matrix.
 	ObjectConstants objConstants;
     XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
+    objConstants.gTime = gt.TotalTime();
     mObjectCB->CopyData(0, objConstants);
+
+
+    float tha = 1 / 2.0 * sin(gt.TotalTime()) + 1/2.0;
+    
+    char strChar[100];
+    sprintf(strChar, "输出的值为：%f", tha);
+    LogText(strChar);
 }
 
 void BoxApp::Draw(const GameTimer& gt)
@@ -277,6 +289,10 @@ void BoxApp::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.y = y;
 }
 
+
+//创建常量缓冲区描述符堆，描述符堆可看成描述符数组
+//是一群描述符的集合
+//这里的描述符只有一个，注意描述符与视图等价
 void BoxApp::BuildDescriptorHeaps()
 {
     D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
@@ -289,13 +305,16 @@ void BoxApp::BuildDescriptorHeaps()
 }
 
 void BoxApp::BuildConstantBuffers()
-{
+{ 
+    //mObjectCB赋值后为UploadBuffer类对象的指针
 	mObjectCB = std::make_unique<UploadBuffer<ObjectConstants>>(md3dDevice.Get(), 1, true);
 
+    //将字节数补齐为256的倍数
 	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
 
 	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = mObjectCB->Resource()->GetGPUVirtualAddress();
     // Offset to the ith object constant buffer in the buffer.
+    //为了不混乱索引缓冲区和顶点缓冲区，需要提供起始地址
     int boxCBufIndex = 0;
 	cbAddress += boxCBufIndex*objCBByteSize;
 
@@ -317,14 +336,16 @@ void BoxApp::BuildRootSignature()
 	// thought of as defining the function signature.  
 
 	// Root parameter can be a table, root descriptor or root constants.
+    //Parameter意为变量，可以为描述符表，根描述符，或根常量
 	CD3DX12_ROOT_PARAMETER slotRootParameter[1];
 
 	// Create a single descriptor table of CBVs.
 	CD3DX12_DESCRIPTOR_RANGE cbvTable;
-	cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
+	cbvTable.Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);//1是描述符数量，0是常量寄存器0
 	slotRootParameter[0].InitAsDescriptorTable(1, &cbvTable);
 
 	// A root signature is an array of root parameters.
+    //根签名由一组根参数组成
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(1, slotRootParameter, 0, nullptr, 
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
@@ -356,6 +377,11 @@ void BoxApp::BuildShadersAndInputLayout()
 
     mInputLayout =
     {
+        //1语义 与shader中接受数据的语义一致.    2相同语义的不同数据例如pos0,pos1
+        //3数据的格式                            4输入槽，d3d支持0-15槽
+        //5数据偏移量，来自数据格式所占字节数的累加，第一个不偏移，第二个偏移32/8*3=12,如果有第四个则是12+32/8*4=28
+        //6D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA  分为顶点数据  和实例化的数据
+        //7 与6相似，如果是顶点数据则为0实例话数据设为1
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };
@@ -402,6 +428,32 @@ void BoxApp::BuildBoxGeometry()
 		4, 3, 7
 	};
 
+    //本章练习的三棱锥
+	//std::array<Vertex, 5> vertices =
+	//{
+	//	Vertex({ XMFLOAT3(0	,  +1.732f , 0), XMFLOAT4(Colors::Red) }),
+	//	Vertex({ XMFLOAT3(-1.0f,  0, 1.0f), XMFLOAT4(Colors::Green) }),
+	//	Vertex({ XMFLOAT3(-1.0f,  0, -1.0f), XMFLOAT4(Colors::Green) }),
+	//	Vertex({ XMFLOAT3(+1.0f,  0, -1.0f), XMFLOAT4(Colors::Green) }),
+	//	Vertex({ XMFLOAT3(+1.0f,  0, +1.0f), XMFLOAT4(Colors::Green) }),
+	//};
+
+	//std::array<std::uint16_t, 18> indices =
+	//{
+	//	// front face
+	//	0, 3, 2,
+	//	0, 2, 1,
+
+	//	// back face
+	//	1, 4, 0,
+	//	0, 4, 3,
+
+	//	// left face
+	//	1, 3, 4,
+	//	1, 2, 3,
+
+	//};
+
     const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
 	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
 
@@ -414,6 +466,7 @@ void BoxApp::BuildBoxGeometry()
 	ThrowIfFailed(D3DCreateBlob(ibByteSize, &mBoxGeo->IndexBufferCPU));
 	CopyMemory(mBoxGeo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
+   // VertexBufferGPU是ID3D12Resource类型的，实质上是一个缓冲区
 	mBoxGeo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
 		mCommandList.Get(), vertices.data(), vbByteSize, mBoxGeo->VertexBufferUploader);
 

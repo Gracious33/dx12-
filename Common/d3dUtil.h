@@ -96,6 +96,7 @@ public:
 
     static std::string ToString(HRESULT hr);
 
+    //将字节数补齐为256的倍数
     static UINT CalcConstantBufferByteSize(UINT byteSize)
     {
         // Constant buffers must be a multiple of the minimum hardware
